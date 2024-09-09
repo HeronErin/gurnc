@@ -1,5 +1,6 @@
-mod parsing;
-const hello : &str = "Result<i32, Error> foo(i32 o){
+#![allow(unused)]
+mod compiler;
+const HELLO : &str = "Result<i32, Error> foo(i32 o){
 	return Ok(o); // You can return with the keyword
 }
 

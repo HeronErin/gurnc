@@ -7,6 +7,18 @@ pub enum NumberBase {
     Octal = 8,
     Hexadecimal = 16,
 }
+impl NumberBase {
+    #[inline]
+    pub fn is_valid(&self, c: char) -> bool {
+        match self {
+            Self::Binary => matches!(c, '0'..='1'),
+            Self::Octal => matches!(c, '0'..='7'),
+            Self::Decimal => matches!(c, '0'..='9'),
+            Self::Hexadecimal => matches!(c.to_ascii_lowercase(), '0'..='9' | 'a'..='f'),
+            _ => panic!("Unknown base: {:?}", self),
+        }
+    }
+}
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum NumberType {
     I8,
@@ -74,14 +86,55 @@ impl NumberLiteral {
             self.text_filtered.as_str(),
             self.detected_base.clone().unwrap_or(NumberBase::Decimal) as u32,
         )?;
-        if self.is_negative{
+
+        if self.is_negative {
             ret = T::zero().sub(ret);
         }
-        
+
         Ok(ret)
     }
-
 }
+pub fn quick_number_check(mut maybe_number: &str) -> Option<(usize, NumberBase, Option<NumberType>)> {
+    let mut ret = 0;
+    if (maybe_number.starts_with('-')) {
+        maybe_number = maybe_number.get(1..).unwrap();
+        ret += 1;
+    }
+    let mut base = NumberBase::Decimal;
+    for prefix in NUMBER_PREFIX_DATA.iter() {
+        if !maybe_number.starts_with(prefix.0) {
+            continue;
+        }
+        ret += prefix.0.len();
+        maybe_number = maybe_number.get(prefix.0.len()..).unwrap();
+        base = prefix.1.clone();
+
+        break;
+    }
+    let no_underscore = maybe_number
+        .char_indices()
+        .into_iter()
+        .filter(|c| c.1 != '_');
+    let mut max_valid_digit = 0;
+    for (index, char) in no_underscore {
+        if !base.is_valid(char) {
+            break;
+        }
+        max_valid_digit = index;
+    }
+    ret += max_valid_digit;
+    maybe_number = maybe_number.get(max_valid_digit..).unwrap();
+    let suffix = NUMBER_SUFFIX_DATA
+        .iter()
+        .filter(|suffix| maybe_number.starts_with(suffix.0))
+        .next();
+    if let Some(suffix) = suffix{
+        ret += suffix.0.len();
+    }
+
+    Some((ret, base, suffix.map(|s| s.1.clone())))
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -89,22 +142,52 @@ mod test {
     #[test]
     pub fn test_parse_integers() {
         // Decimal tests
-        assert_eq!(Ok(123), NumberLiteral::new("123".to_string()).parse_int::<i32>());
-        assert_eq!(Ok(-123), NumberLiteral::new("-123".to_string()).parse_int::<i32>());
-        assert_eq!(Ok(255), NumberLiteral::new("255u8".to_string()).parse_int::<u8>());
+        assert_eq!(
+            Ok(123),
+            NumberLiteral::new("123".to_string()).parse_int::<i32>()
+        );
+        assert_eq!(
+            Ok(-123),
+            NumberLiteral::new("-123".to_string()).parse_int::<i32>()
+        );
+        assert_eq!(
+            Ok(255),
+            NumberLiteral::new("255u8".to_string()).parse_int::<u8>()
+        );
 
         // Binary tests
-        assert_eq!(Ok(5), NumberLiteral::new("0b101".to_string()).parse_int::<i32>());
-        assert_eq!(Ok(-2), NumberLiteral::new("-0b10".to_string()).parse_int::<i32>());
+        assert_eq!(
+            Ok(5),
+            NumberLiteral::new("0b101".to_string()).parse_int::<i32>()
+        );
+        assert_eq!(
+            Ok(-2),
+            NumberLiteral::new("-0b10".to_string()).parse_int::<i32>()
+        );
 
         // Octal tests
-        assert_eq!(Ok(8), NumberLiteral::new("0o10".to_string()).parse_int::<i32>());
-        assert_eq!(Ok(-8), NumberLiteral::new("-0o10".to_string()).parse_int::<i32>());
+        assert_eq!(
+            Ok(8),
+            NumberLiteral::new("0o10".to_string()).parse_int::<i32>()
+        );
+        assert_eq!(
+            Ok(-8),
+            NumberLiteral::new("-0o10".to_string()).parse_int::<i32>()
+        );
 
         // Hexadecimal tests
-        assert_eq!(Ok(26), NumberLiteral::new("0x1A".to_string()).parse_int::<i32>());
-        assert_eq!(Ok(-26), NumberLiteral::new("-0x1A".to_string()).parse_int::<i32>());
-        assert_eq!(Ok(16), NumberLiteral::new("0x10u32".to_string()).parse_int::<u32>());
+        assert_eq!(
+            Ok(26),
+            NumberLiteral::new("0x1A".to_string()).parse_int::<i32>()
+        );
+        assert_eq!(
+            Ok(-26),
+            NumberLiteral::new("-0x1A".to_string()).parse_int::<i32>()
+        );
+        assert_eq!(
+            Ok(16),
+            NumberLiteral::new("0x10u32".to_string()).parse_int::<u32>()
+        );
     }
 
     #[test]
@@ -119,25 +202,49 @@ mod test {
     #[test]
     pub fn test_invalid_parse() {
         // Invalid parsing
-        assert!(NumberLiteral::new("invalid".to_string()).parse_int::<i32>().is_err());
-        assert!(NumberLiteral::new("0xG".to_string()).parse_int::<i32>().is_err());
-        assert!(NumberLiteral::new("-0o8".to_string()).parse_int::<i32>().is_err()); // Octal digit out of range
+        assert!(NumberLiteral::new("invalid".to_string())
+            .parse_int::<i32>()
+            .is_err());
+        assert!(NumberLiteral::new("0xG".to_string())
+            .parse_int::<i32>()
+            .is_err());
+        assert!(NumberLiteral::new("-0o8".to_string())
+            .parse_int::<i32>()
+            .is_err()); // Octal digit out of range
     }
 
     #[test]
     pub fn test_with_suffixes() {
         // Suffix parsing
-        assert_eq!(Ok(255), NumberLiteral::new("255u8".to_string()).parse_int::<u8>());
-        assert_eq!(Ok(-127), NumberLiteral::new("-127i8".to_string()).parse_int::<i8>());
-        assert_eq!(Ok(1024), NumberLiteral::new("1024u16".to_string()).parse_int::<u16>());
+        assert_eq!(
+            Ok(255),
+            NumberLiteral::new("255u8".to_string()).parse_int::<u8>()
+        );
+        assert_eq!(
+            Ok(-127),
+            NumberLiteral::new("-127i8".to_string()).parse_int::<i8>()
+        );
+        assert_eq!(
+            Ok(1024),
+            NumberLiteral::new("1024u16".to_string()).parse_int::<u16>()
+        );
     }
 
     #[test]
     pub fn test_negative_numbers() {
         // Ensure negatives are parsed correctly
-        assert_eq!(Ok(-1), NumberLiteral::new("-1".to_string()).parse_int::<i8>());
-        assert_eq!(Ok(-10), NumberLiteral::new("-0xa".to_string()).parse_int::<i8>());
-        assert_eq!(Ok(-10), NumberLiteral::new("-0xai8".to_string()).parse_int::<i8>());
+        assert_eq!(
+            Ok(-1),
+            NumberLiteral::new("-1".to_string()).parse_int::<i8>()
+        );
+        assert_eq!(
+            Ok(-10),
+            NumberLiteral::new("-0xa".to_string()).parse_int::<i8>()
+        );
+        assert_eq!(
+            Ok(-10),
+            NumberLiteral::new("-0xai8".to_string()).parse_int::<i8>()
+        );
     }
 
     #[test]
@@ -185,7 +292,13 @@ impl NumberType {
             NumberType::I64 | NumberType::U64 | NumberType::F64 => Some(8),
             NumberType::I128 | NumberType::U128 | NumberType::F128 => Some(16),
             NumberType::ISIZE | NumberType::USIZE => None,
-            NumberType::REAL => Some(8)
+            NumberType::REAL => Some(8),
+        }
+    }
+    pub fn is_float(&self) -> bool {
+        match self {
+            NumberType::F32 | NumberType::F64 | NumberType::F128 => true,
+            _ => false,
         }
     }
 }

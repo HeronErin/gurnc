@@ -2,6 +2,7 @@
 mod ast;
 pub mod tokenizer;
 mod number_parser;
+mod string_parser;
 pub use ast::*;
 
 pub enum ParseStage{
