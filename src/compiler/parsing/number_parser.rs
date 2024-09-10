@@ -15,7 +15,7 @@ impl NumberBase {
             Self::Octal => matches!(c, '0'..='7'),
             Self::Decimal => matches!(c, '0'..='9'),
             Self::Hexadecimal => matches!(c.to_ascii_lowercase(), '0'..='9' | 'a'..='f'),
-            _ => panic!("Unknown base: {:?}", self),
+            // _ => panic!("Unknown base: {:?}", self),
         }
     }
 }

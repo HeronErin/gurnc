@@ -1,20 +1,11 @@
 #![allow(unused)]
 mod compiler;
-const HELLO : &str = "Result<i32, Error> foo(i32 o){
-	return Ok(o); // You can return with the keyword
-}
+const HELLO : &str = "
 
+int x = 4;
 
-Result<(), Error> main(){
-	i32 bar = 1234i32 + foo(0)?; // Bubble up error
-	var baz = bar; // implict copy, implicit type
-	if (baz == 1234)
-		println!(\"{}\" ,baz);
-	else
-		todo!();
-	Ok(()) // Or implict return by returning unit type
-}";
+";
 
 fn main() {
-    println!("Hello, world!");
+    compiler::parsing::tokenizer::tokenize_text(HELLO.to_string()).unwrap();
 }

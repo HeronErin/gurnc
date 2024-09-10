@@ -5,6 +5,9 @@ mod number_parser;
 mod string_parser;
 pub use ast::*;
 
+mod keywords;
+pub use keywords::*;
+
 pub enum ParseStage{
     Text,
     DefinitionScan,
