@@ -58,7 +58,7 @@ impl NumberLiteral {
         } else {
             size+=1; &number[1..]
         };
-        let first_char = number.chars().next()?;
+        let first_char = current_string.chars().next()?;
         
         // First must be zero to specify a base, or a decimal number
         if !first_char.is_numeric(){
@@ -67,7 +67,7 @@ impl NumberLiteral {
 
         let detected_base = NUMBER_PREFIX_DATA
             .iter()
-            .filter(|prefix| current_string[..prefix.0.len()].eq_ignore_ascii_case(prefix.0))
+            .filter(|prefix| current_string.len() >= prefix.0.len() && current_string[..prefix.0.len()].eq_ignore_ascii_case(prefix.0))
             .map(|prefix| prefix.1.clone())
             .next();
         if let Some(base) = detected_base.as_ref() {
@@ -143,10 +143,6 @@ impl NumberLiteral {
             self.detected_base.clone().unwrap_or(NumberBase::Decimal) as u32,
         )?;
 
-        if self.is_negative {
-            ret = T::zero().sub(ret);
-        }
-
         Ok(ret)
     }
 }
@@ -194,5 +190,218 @@ impl NumberType {
             NumberType::F32 | NumberType::F64 | NumberType::F128 => true,
             _ => false,
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_number_base_is_valid_binary() {
+        let base = NumberBase::Binary;
+        assert!(base.is_valid('0'));
+        assert!(base.is_valid('1'));
+        assert!(!base.is_valid('2'));
+        assert!(!base.is_valid('a'));
+    }
+
+    #[test]
+    fn test_number_base_is_valid_octal() {
+        let base = NumberBase::Octal;
+        assert!(base.is_valid('0'));
+        assert!(base.is_valid('7'));
+        assert!(!base.is_valid('8'));
+        assert!(!base.is_valid('a'));
+    }
+
+    #[test]
+    fn test_number_base_is_valid_decimal() {
+        let base = NumberBase::Decimal;
+        assert!(base.is_valid('0'));
+        assert!(base.is_valid('9'));
+        assert!(!base.is_valid('a'));
+        assert!(!base.is_valid(' '));
+    }
+
+    #[test]
+    fn test_number_base_is_valid_hexadecimal() {
+        let base = NumberBase::Hexadecimal;
+        assert!(base.is_valid('0'));
+        assert!(base.is_valid('9'));
+        assert!(base.is_valid('a'));
+        assert!(base.is_valid('f'));
+        assert!(base.is_valid('A'));
+        assert!(base.is_valid('F'));
+        assert!(!base.is_valid('g'));
+        assert!(!base.is_valid(' '));
+    }
+
+    #[test]
+    fn test_number_literal_new_decimal() {
+        let (size, literal) = NumberLiteral::new("1234").unwrap();
+        assert_eq!(size, 4);
+        assert_eq!(literal.text_content, "1234");
+        assert_eq!(literal.text_filtered, "1234");
+        assert!(!literal.is_negative);
+        assert!(!literal.has_decimal);
+        assert_eq!(literal.detected_base, None);
+        assert_eq!(literal.number_type, None);
+    }
+
+    #[test]
+    fn test_number_literal_new_binary() {
+        let (size, literal) = NumberLiteral::new("0b1010").unwrap();
+        assert_eq!(size, 6);
+        assert_eq!(literal.text_content, "0b1010");
+        assert_eq!(literal.text_filtered, "1010");
+        assert!(!literal.is_negative);
+        assert!(!literal.has_decimal);
+        assert_eq!(literal.detected_base, Some(NumberBase::Binary));
+        assert_eq!(literal.number_type, None);
+    }
+
+    #[test]
+    fn test_number_literal_new_octal() {
+        let (size, literal) = NumberLiteral::new("0o755").unwrap();
+        assert_eq!(size, 5);
+        assert_eq!(literal.text_content, "0o755");
+        assert_eq!(literal.text_filtered, "755");
+        assert!(!literal.is_negative);
+        assert!(!literal.has_decimal);
+        assert_eq!(literal.detected_base, Some(NumberBase::Octal));
+        assert_eq!(literal.number_type, None);
+    }
+
+    #[test]
+    fn test_number_literal_new_hexadecimal() {
+        let (size, literal) = NumberLiteral::new("0x1a3f").unwrap();
+        assert_eq!(size, 6);
+        assert_eq!(literal.text_content, "0x1a3f");
+        assert_eq!(literal.text_filtered, "1a3f");
+        assert!(!literal.is_negative);
+        assert!(!literal.has_decimal);
+        assert_eq!(literal.detected_base, Some(NumberBase::Hexadecimal));
+        assert_eq!(literal.number_type, None);
+    }
+
+    #[test]
+    fn test_number_literal_new_negative() {
+        let (size, literal) = NumberLiteral::new("-1234 ").unwrap();
+        assert_eq!(size, 5);
+        assert_eq!(literal.text_content, "-1234");
+        assert_eq!(literal.text_filtered, "-1234");
+        assert!(literal.is_negative);
+        assert!(!literal.has_decimal);
+        assert_eq!(literal.detected_base, None);
+        assert_eq!(literal.number_type, None);
+    }
+
+    #[test]
+    fn test_number_literal_new_with_decimal() {
+        let (size, literal) = NumberLiteral::new("3.14").unwrap();
+        assert_eq!(size, 4);
+        assert_eq!(literal.text_content, "3.14");
+        assert_eq!(literal.text_filtered, "3.14");
+        assert!(!literal.is_negative);
+        assert!(literal.has_decimal);
+        assert_eq!(literal.detected_base, None);
+        assert_eq!(literal.number_type, None);
+    }
+
+    #[test]
+    fn test_number_literal_new_with_suffix() {
+        let (size, literal) = NumberLiteral::new("255u8").unwrap();
+        assert_eq!(size, 5);
+        assert_eq!(literal.text_content, "255u8");
+        assert_eq!(literal.text_filtered, "255");
+        assert!(!literal.is_negative);
+        assert!(!literal.has_decimal);
+        assert_eq!(literal.detected_base, None);
+        assert_eq!(literal.number_type, Some(NumberType::U8));
+    }
+
+
+    #[test]
+    fn test_number_literal_parse_int_i32() {
+        let literal = NumberLiteral {
+            text_content: "123".to_string(),
+            text_filtered: "123".to_string(),
+            is_negative: false,
+            has_decimal: false,
+            detected_base: Some(NumberBase::Decimal),
+            number_type: Some(NumberType::I32),
+        };
+        let value: i32 = literal.parse_int().unwrap();
+        assert_eq!(value, 123);
+    }
+
+    #[test]
+    fn test_number_literal_parse_int_u8() {
+        let literal = NumberLiteral {
+            text_content: "255u8".to_string(),
+            text_filtered: "255".to_string(),
+            is_negative: false,
+            has_decimal: false,
+            detected_base: Some(NumberBase::Decimal),
+            number_type: Some(NumberType::U8),
+        };
+        let value: u8 = literal.parse_int().unwrap();
+        assert_eq!(value, 255);
+    }
+
+    #[test]
+    fn test_number_literal_parse_int_negative() {
+        let literal = NumberLiteral {
+            text_content: "-123".to_string(),
+            text_filtered: "-123".to_string(),
+            is_negative: true,
+            has_decimal: false,
+            detected_base: Some(NumberBase::Decimal),
+            number_type: None,
+        };
+        let value: i32 = literal.parse_int().unwrap();
+        assert_eq!(value, -123);
+    }
+
+    #[test]
+    fn test_number_literal_parse_int_invalid() {
+        let literal = NumberLiteral {
+            text_content: "0x1g".to_string(),
+            text_filtered: "1g".to_string(),
+            is_negative: false,
+            has_decimal: false,
+            detected_base: Some(NumberBase::Hexadecimal),
+            number_type: None,
+        };
+        assert!(literal.parse_int::<i32>().is_err());
+    }
+
+    #[test]
+    fn test_number_type_to_size() {
+        assert_eq!(NumberType::I8.to_size(), Some(1));
+        assert_eq!(NumberType::U8.to_size(), Some(1));
+        assert_eq!(NumberType::I16.to_size(), Some(2));
+        assert_eq!(NumberType::U16.to_size(), Some(2));
+        assert_eq!(NumberType::I32.to_size(), Some(4));
+        assert_eq!(NumberType::U32.to_size(), Some(4));
+        assert_eq!(NumberType::F32.to_size(), Some(4));
+        assert_eq!(NumberType::I64.to_size(), Some(8));
+        assert_eq!(NumberType::U64.to_size(), Some(8));
+        assert_eq!(NumberType::F64.to_size(), Some(8));
+        assert_eq!(NumberType::I128.to_size(), Some(16));
+        assert_eq!(NumberType::U128.to_size(), Some(16));
+        assert_eq!(NumberType::F128.to_size(), Some(16));
+        assert_eq!(NumberType::ISIZE.to_size(), None);
+        assert_eq!(NumberType::USIZE.to_size(), None);
+        assert_eq!(NumberType::REAL.to_size(), Some(8));
+    }
+
+    #[test]
+    fn test_number_type_is_float() {
+        assert!(NumberType::F32.is_float());
+        assert!(NumberType::F64.is_float());
+        assert!(NumberType::F128.is_float());
+        assert!(!NumberType::I8.is_float());
+        assert!(!NumberType::U8.is_float());
     }
 }

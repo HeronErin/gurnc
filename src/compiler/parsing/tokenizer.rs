@@ -19,17 +19,11 @@ pub enum TokenData {
     Semicolon,
     Colon,
 
-    Macro(MacroCall),
-
     // Starting char, token contents
     Bracket(u8, Vec<Token>), // Anytype of thing that could nest code, including '(', '{', and "["
 }
 
-#[derive(Debug)]
-pub struct MacroCall {
-    pub name: String,
-    pub argument_tokens: Vec<Token>,
-}
+
 
 #[derive(Debug)]
 pub struct Token {
