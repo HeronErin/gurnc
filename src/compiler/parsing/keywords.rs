@@ -2,24 +2,18 @@ macro_rules! genKeyword {
     ($($element:ident, $text: literal), *) => {
         const KEYWORDS : &[&'static str] = &[$($text, )*];
 
-
-        enum Keyword{
+        #[derive(Debug)]
+        pub enum Keyword{
             $(
                 $element,
             )*
         }
         impl Keyword{
             pub fn try_from_string(x : &str) ->Option<Self>{
-                if x.len() == 0 { return None }
-                let mut new_string = x.to_string();
-
-                unsafe{
-                    let bts = new_string.as_bytes_mut();
-                    bts[0] = bts[0].to_ascii_uppercase();
-                }
+                if x.len() <= 1 { return None }
 
                 $(
-                    if new_string.starts_with($text){
+                    if x.starts_with($text){
                         return Some(Self::$element)
                     }
                 )*

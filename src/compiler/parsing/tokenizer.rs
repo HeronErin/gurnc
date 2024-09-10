@@ -1,3 +1,4 @@
+use core::panic;
 use std::error::Error;
 use std::str::Chars;
 use std::string;
@@ -7,11 +8,12 @@ pub struct StringLiteral;
 use super::super::operators::*;
 use super::number_parser::*;
 
+#[derive(Debug)]
 pub enum TokenData {
-    Keyword(String),
+    Keyword(Keyword),
     TextCluster(String),
     NumberLiteral(NumberLiteral),
-    StringLiteral(StringLiteral),
+    // StringLiteral(StringLiteral),
     Whitespace(String),
     Operator(Operator),
     Semicolon,
@@ -23,10 +25,13 @@ pub enum TokenData {
     Bracket(u8, Vec<Token>), // Anytype of thing that could nest code, including '(', '{', and "["
 }
 
+#[derive(Debug)]
 pub struct MacroCall {
     pub name: String,
     pub argument_tokens: Vec<Token>,
 }
+
+#[derive(Debug)]
 pub struct Token {
     pub index: usize,
     pub length: usize,
@@ -59,6 +64,29 @@ fn count_whitespace_indexes(s: &str) -> usize {
     ws
 }
 
+fn detect_text_cluster(s: &str) -> Option<usize> {
+    if 0 == s.len() {
+        return None;
+    }
+
+    let mut chars = s.chars();
+    let first = chars.next().unwrap();
+
+    if (first.is_whitespace() || first.is_ascii_punctuation() || first.is_ascii_digit()) {
+        return None;
+    }
+    let mut count = 1;
+    for char in chars {
+        if char.is_whitespace() || char.is_ascii_punctuation() {
+            break;
+        }
+        count += 1;
+    }
+
+    Some(count)
+}
+
+use super::keywords::*;
 use crate::compiler::errors::*;
 
 pub fn tokenize_text(text: String) -> Result<Vec<Token>, ParsingError> {
@@ -77,7 +105,6 @@ pub fn tokenize_text(text: String) -> Result<Vec<Token>, ParsingError> {
 
     while (index < text.len()) {
         let current = *text[index..].as_bytes().first().unwrap();
-        println!("chr {}", current);
         if (current.is_ascii_whitespace()) {
             let amount = count_whitespace_indexes(&text[index..]);
             tokenStack.push(Token {
@@ -90,7 +117,6 @@ pub fn tokenize_text(text: String) -> Result<Vec<Token>, ParsingError> {
             isAfterWhitespace = true;
             continue;
         }
-        
 
         if (is_opening_bracket(current)) {
             let closing = opening_to_closing(current);
@@ -114,12 +140,31 @@ pub fn tokenize_text(text: String) -> Result<Vec<Token>, ParsingError> {
             tokenStack = oldStack;
             waiting_for_ending = old_wait;
             index += 1;
-        } else if let Some((length, _, _)) = quick_number_check(&text[index..]) {
-            let literal = NumberLiteral::new(text[index..index + length].to_string());
+        } else if (current == b',') {
+            tokenStack.push(Token {
+                index: index,
+                length: 1,
+                data: TokenData::Colon,
+            });
+            index += 1;
+            canBePreUnary=true;
+            continue;
+        } else if (current == b';') {
+            tokenStack.push(Token {
+                index: index,
+                length: 1,
+                data: TokenData::Semicolon,
+            });
+            index += 1;
+            canBePreUnary=true;
+            continue;
+        } else if let Some((length, numberLiteral)) = NumberLiteral::new(&text[index..]) {
+            debug_assert_ne!(length, 0);
+            
             tokenStack.push(Token {
                 index,
                 length,
-                data: TokenData::NumberLiteral(literal),
+                data: TokenData::NumberLiteral(numberLiteral),
             });
 
             index += length;
@@ -129,20 +174,45 @@ pub fn tokenize_text(text: String) -> Result<Vec<Token>, ParsingError> {
             canBePreUnary,
             !canBePreUnary,
         ) {
+            debug_assert_ne!(length, 0);
             tokenStack.push(Token {
                 index,
                 length,
                 data: TokenData::Operator((opr)),
             });
             index += length;
-        }else{         
-            println!("Unknown {}", index);
+            canBePreUnary = true;
+            continue;
+        } else if let Some(length) = detect_text_cluster(&text[index..]) {
+            debug_assert_ne!(length, 0);
+            let cluster = &text[index..index + length].to_lowercase();
+            let possible_keyword = Keyword::try_from_string(&cluster);
+            if let Some(keyword) = possible_keyword {
+                tokenStack.push(Token {
+                    index,
+                    length,
+                    data: TokenData::Keyword(keyword),
+                })
+            } else {
+                tokenStack.push(Token {
+                    index,
+                    length,
+                    data: TokenData::TextCluster(text[index..index + length].to_string()),
+                })
+            }
+
+            index += length;
+        } else {
+            println!("Unknown {} at {}", current, index);
+            return Err(ParsingError::UnknownTokenizationError);
             index += 1;
         }
-        
+
         isAfterWhitespace = false;
         canBePreUnary = false;
     }
-
-    todo!()
+    if (bracketStack.len() != 0){
+        return Err(ParsingError::BracketCountError);
+    }
+    Ok(tokenStack)
 }

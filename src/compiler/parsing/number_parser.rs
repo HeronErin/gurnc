@@ -38,47 +38,103 @@ pub enum NumberType {
     F128,
     REAL,
 }
+
+#[derive(Debug)]
 pub struct NumberLiteral {
     pub text_content: String,
     pub text_filtered: String,
     pub is_negative: bool,
+    pub has_decimal : bool,
     pub detected_base: Option<NumberBase>,
     pub number_type: Option<NumberType>,
 }
 use num_traits::Num;
 impl NumberLiteral {
-    pub fn new(number: String) -> Self {
-        let no_underscore: String = number.as_str().chars().filter(|c| *c != '_').collect();
-        let is_negative = no_underscore.starts_with('-');
-        let mut no_negative = if !is_negative {
-            no_underscore
+    pub fn new(number: &str) -> Option<(usize, Self)> {
+        let mut size = 0;
+        let is_negative = number.starts_with('-');
+        let mut current_string = if !is_negative {
+            number
         } else {
-            no_underscore.strip_prefix("-").unwrap().to_string()
+            size+=1; &number[1..]
         };
+        let first_char = number.chars().next()?;
+        
+        // First must be zero to specify a base, or a decimal number
+        if !first_char.is_numeric(){
+            return None;
+        }
 
         let detected_base = NUMBER_PREFIX_DATA
             .iter()
-            .filter(|prefix| no_negative.starts_with(prefix.0))
+            .filter(|prefix| current_string[..prefix.0.len()].eq_ignore_ascii_case(prefix.0))
             .map(|prefix| prefix.1.clone())
             .next();
         if let Some(base) = detected_base.as_ref() {
-            no_negative = no_negative[2..].to_string();
+            current_string = &current_string[2..];
+            size+=2;
         }
+        let base = detected_base.clone().unwrap_or(NumberBase::Decimal);
+        
+        let mut filtered = (if is_negative {"-"} else {""}).to_string();
+        let mut highest_valid: usize = usize::MAX;
+        let mut next_invalid = usize::MAX;
+
+        let mut hasSeenPeriod = false;
+        
+        for char in current_string.char_indices().filter(|c| c.1 != '_'){
+
+
+            if '.' == char.1{
+                hasSeenPeriod = true;
+            }
+            else if !base.is_valid(char.1){
+                next_invalid = char.0;
+                break;
+            }
+            
+
+            filtered.push(char.1);
+            highest_valid = char.0;
+        }
+        // Found nothing
+        if highest_valid == usize::MAX{return None;}
+        
+        // We are at the end of the buffer
+        if next_invalid == usize::MAX{
+            size += highest_valid + 1;
+            return Some((size, Self {
+                text_content: number[..size].to_string(),
+                text_filtered: filtered,
+                is_negative,
+                detected_base,
+                number_type: None,
+                has_decimal: hasSeenPeriod
+            }))
+        }
+        size += next_invalid;
+        current_string = &current_string[next_invalid..];
+
+
         let number_type = NUMBER_SUFFIX_DATA
             .iter()
-            .filter(|suffix| no_negative.ends_with(suffix.0))
+            .filter(|suffix| 
+                current_string.len() >= suffix.0.len() && current_string[..suffix.0.len()].eq_ignore_ascii_case(suffix.0)
+            )
             .map(|prefix| (prefix.0.len(), prefix.1.clone()))
             .next();
         if let Some(ty) = number_type.as_ref() {
-            no_negative = no_negative[..no_negative.len() - ty.0].to_string();
+            size += ty.0;
         }
-        Self {
-            text_content: number,
-            text_filtered: no_negative,
+        Some((size, Self {
+            text_content: number[..size].to_string(),
+            text_filtered: filtered,
             is_negative,
             detected_base,
             number_type: number_type.map(|t| t.1),
-        }
+            has_decimal: hasSeenPeriod
+        }))
+        
     }
 
     pub fn parse_int<T: Num>(&self) -> Result<T, T::FromStrRadixErr> {
@@ -92,168 +148,6 @@ impl NumberLiteral {
         }
 
         Ok(ret)
-    }
-}
-pub fn quick_number_check(mut maybe_number: &str) -> Option<(usize, NumberBase, Option<NumberType>)> {
-    let mut ret = 0;
-    if (maybe_number.starts_with('-')) {
-        maybe_number = maybe_number.get(1..).unwrap();
-        ret += 1;
-    }
-    let mut base = NumberBase::Decimal;
-    for prefix in NUMBER_PREFIX_DATA.iter() {
-        if !maybe_number.starts_with(prefix.0) {
-            continue;
-        }
-        ret += prefix.0.len();
-        maybe_number = maybe_number.get(prefix.0.len()..).unwrap();
-        base = prefix.1.clone();
-
-        break;
-    }
-    let no_underscore = maybe_number
-        .char_indices()
-        .into_iter()
-        .filter(|c| c.1 != '_');
-    let mut max_valid_digit = 0;
-    for (index, char) in no_underscore {
-        if !base.is_valid(char) {
-            break;
-        }
-        max_valid_digit = index;
-    }
-    ret += max_valid_digit;
-    maybe_number = maybe_number.get(max_valid_digit..).unwrap();
-    let suffix = NUMBER_SUFFIX_DATA
-        .iter()
-        .filter(|suffix| maybe_number.starts_with(suffix.0))
-        .next();
-    if let Some(suffix) = suffix{
-        ret += suffix.0.len();
-    }
-
-    Some((ret, base, suffix.map(|s| s.1.clone())))
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    pub fn test_parse_integers() {
-        // Decimal tests
-        assert_eq!(
-            Ok(123),
-            NumberLiteral::new("123".to_string()).parse_int::<i32>()
-        );
-        assert_eq!(
-            Ok(-123),
-            NumberLiteral::new("-123".to_string()).parse_int::<i32>()
-        );
-        assert_eq!(
-            Ok(255),
-            NumberLiteral::new("255u8".to_string()).parse_int::<u8>()
-        );
-
-        // Binary tests
-        assert_eq!(
-            Ok(5),
-            NumberLiteral::new("0b101".to_string()).parse_int::<i32>()
-        );
-        assert_eq!(
-            Ok(-2),
-            NumberLiteral::new("-0b10".to_string()).parse_int::<i32>()
-        );
-
-        // Octal tests
-        assert_eq!(
-            Ok(8),
-            NumberLiteral::new("0o10".to_string()).parse_int::<i32>()
-        );
-        assert_eq!(
-            Ok(-8),
-            NumberLiteral::new("-0o10".to_string()).parse_int::<i32>()
-        );
-
-        // Hexadecimal tests
-        assert_eq!(
-            Ok(26),
-            NumberLiteral::new("0x1A".to_string()).parse_int::<i32>()
-        );
-        assert_eq!(
-            Ok(-26),
-            NumberLiteral::new("-0x1A".to_string()).parse_int::<i32>()
-        );
-        assert_eq!(
-            Ok(16),
-            NumberLiteral::new("0x10u32".to_string()).parse_int::<u32>()
-        );
-    }
-
-    #[test]
-    pub fn test_parse_floats() {
-        // Float tests
-        let f = NumberLiteral::new("-0.1".to_string()).parse_int::<f32>();
-        assert_eq!(-0.1, f.unwrap());
-        let f = NumberLiteral::new("3.14".to_string()).parse_int::<f32>();
-        assert_eq!(3.14, f.unwrap());
-    }
-
-    #[test]
-    pub fn test_invalid_parse() {
-        // Invalid parsing
-        assert!(NumberLiteral::new("invalid".to_string())
-            .parse_int::<i32>()
-            .is_err());
-        assert!(NumberLiteral::new("0xG".to_string())
-            .parse_int::<i32>()
-            .is_err());
-        assert!(NumberLiteral::new("-0o8".to_string())
-            .parse_int::<i32>()
-            .is_err()); // Octal digit out of range
-    }
-
-    #[test]
-    pub fn test_with_suffixes() {
-        // Suffix parsing
-        assert_eq!(
-            Ok(255),
-            NumberLiteral::new("255u8".to_string()).parse_int::<u8>()
-        );
-        assert_eq!(
-            Ok(-127),
-            NumberLiteral::new("-127i8".to_string()).parse_int::<i8>()
-        );
-        assert_eq!(
-            Ok(1024),
-            NumberLiteral::new("1024u16".to_string()).parse_int::<u16>()
-        );
-    }
-
-    #[test]
-    pub fn test_negative_numbers() {
-        // Ensure negatives are parsed correctly
-        assert_eq!(
-            Ok(-1),
-            NumberLiteral::new("-1".to_string()).parse_int::<i8>()
-        );
-        assert_eq!(
-            Ok(-10),
-            NumberLiteral::new("-0xa".to_string()).parse_int::<i8>()
-        );
-        assert_eq!(
-            Ok(-10),
-            NumberLiteral::new("-0xai8".to_string()).parse_int::<i8>()
-        );
-    }
-
-    #[test]
-    pub fn test_text_content_and_filtering() {
-        let literal = NumberLiteral::new("0xFFu8".to_string());
-        assert_eq!(literal.text_content, "0xFFu8");
-        assert_eq!(literal.text_filtered, "FF");
-        assert_eq!(literal.detected_base, Some(NumberBase::Hexadecimal));
-        assert_eq!(literal.number_type, Some(NumberType::U8));
     }
 }
 

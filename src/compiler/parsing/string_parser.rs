@@ -1,6 +1,6 @@
 
 
-
+#[derive(Clone)]
 pub enum StringTypeBitmask{
     Char = 1, // Single quotes
     TemplatedString = 2, // backticks 
@@ -13,10 +13,14 @@ pub enum StringTypeBitmask{
     IsIndentationCorrect = 32, // I"
     IsDoubleIndentationCorrect = 64, //  II"
     IsBytes = 128 // b"
-
-
-
 }
+impl core::fmt::Debug for StringTypeBitmask{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self.clone() as u16).fmt(f)
+    }
+}
+
+#[derive(Debug)]
 pub struct StringLiteral{
     pub string_type_bitmask : StringTypeBitmask, // Bitmask, no enum
     pub string_text_contents : String,

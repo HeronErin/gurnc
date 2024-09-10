@@ -2,10 +2,9 @@
 mod compiler;
 const HELLO : &str = "
 
-int x = 4;
-
-";
+int x = 0.5_U8";
 
 fn main() {
-    compiler::parsing::tokenizer::tokenize_text(HELLO.to_string()).unwrap();
+    let ts = compiler::parsing::tokenizer::tokenize_text(HELLO.to_string()).unwrap();
+    println!("{:?}", ts);
 }
