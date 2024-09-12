@@ -6,6 +6,8 @@ mod string_parser;
 pub use ast::*;
 
 mod keywords;
+mod pattern_matcher;
+mod pattern_constants;
 pub use keywords::*;
 
 pub enum ParseStage{
@@ -14,5 +16,6 @@ pub enum ParseStage{
     
 }
 pub enum ParseStageData{
-    Text(String)
+    Text(String),
+    Tokens(Vec<tokenizer::Token>),
 }

@@ -8,7 +8,7 @@ pub struct StringLiteral;
 use super::super::operators::*;
 use super::number_parser::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TokenData {
     Keyword(Keyword),
     TextCluster(String),
@@ -20,16 +20,54 @@ pub enum TokenData {
     Colon,
 
     // Starting char, token contents
-    Bracket(u8, Vec<Token>), // Anytype of thing that could nest code, including '(', '{', and "["
+    Bracket(
+        u8,
+        Option<Vec<Token> /*  Only None on pattern match constants*/>,
+    ), // Anytype of thing that could nest code, including '(', '{', and "[".
+}
+impl PartialEq for TokenData{
+    fn eq(&self, other: &Self) -> bool {
+        match self{
+            TokenData::Keyword(k) => match other {
+                TokenData::Keyword(k2) => k == k2,
+                _ => false
+            },
+            TokenData::TextCluster(text) => match other {
+                TokenData::TextCluster(text2) => text == text2,
+                _ => false  
+            },
+            TokenData::NumberLiteral(nl) => {
+                match other {
+                    TokenData::NumberLiteral(nl2) => nl == nl2,
+                    _ => false
+                }
+            },
+            TokenData::Whitespace(_) => matches!(other, TokenData::Whitespace(_)),
+            TokenData::Operator(opr) => match other {
+                TokenData::Operator(opr2) => opr == opr2,
+                _=> false
+            },
+            TokenData::Semicolon => matches!(other, TokenData::Semicolon),
+            TokenData::Colon => matches!(other, TokenData::Colon),
+            TokenData::Bracket(c, _) => match other {
+                TokenData::Bracket(c2, _) => *c == *c2,
+                _ => false
+            },
+        }
+    }
 }
 
 
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub index: usize,
     pub length: usize,
     pub data: TokenData,
+}
+impl PartialEq for Token{
+    fn eq(&self, other: &Self) -> bool {
+        self.data == other.data
+    }
 }
 
 #[inline]
@@ -129,7 +167,7 @@ pub fn tokenize_text(text: String) -> Result<Vec<Token>, ParsingError> {
             oldStack.push(Token {
                 index: start,
                 length: index - start,
-                data: TokenData::Bracket(opening, tokenStack),
+                data: TokenData::Bracket(opening, Some(tokenStack)),
             });
             tokenStack = oldStack;
             waiting_for_ending = old_wait;
@@ -141,7 +179,7 @@ pub fn tokenize_text(text: String) -> Result<Vec<Token>, ParsingError> {
                 data: TokenData::Colon,
             });
             index += 1;
-            canBePreUnary=true;
+            canBePreUnary = true;
             continue;
         } else if (current == b';') {
             tokenStack.push(Token {
@@ -150,11 +188,11 @@ pub fn tokenize_text(text: String) -> Result<Vec<Token>, ParsingError> {
                 data: TokenData::Semicolon,
             });
             index += 1;
-            canBePreUnary=true;
+            canBePreUnary = true;
             continue;
         } else if let Some((length, numberLiteral)) = NumberLiteral::new(&text[index..]) {
             debug_assert_ne!(length, 0);
-            
+
             tokenStack.push(Token {
                 index,
                 length,
@@ -205,7 +243,7 @@ pub fn tokenize_text(text: String) -> Result<Vec<Token>, ParsingError> {
         isAfterWhitespace = false;
         canBePreUnary = false;
     }
-    if (bracketStack.len() != 0){
+    if (bracketStack.len() != 0) {
         return Err(ParsingError::BracketCountError);
     }
     Ok(tokenStack)

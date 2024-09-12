@@ -1,4 +1,4 @@
-use std::num::ParseIntError;
+use std::{fmt::Debug, num::ParseIntError};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum NumberBase {
@@ -39,102 +39,157 @@ pub enum NumberType {
     REAL,
 }
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct NumberLiteral {
     pub text_content: String,
     pub text_filtered: String,
     pub is_negative: bool,
-    pub has_decimal : bool,
+    pub has_decimal: bool,
     pub detected_base: Option<NumberBase>,
     pub number_type: Option<NumberType>,
 }
+impl Debug for NumberLiteral {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.text_content.fmt(f)
+    }
+}
+impl PartialEq for NumberLiteral {
+    fn eq(&self, other: &Self) -> bool {
+        // Simplist case
+        if self.text_content == other.text_content {
+            return true;
+        }
+        if (self.is_negative != other.is_negative){return false;}
+        let tp = self.number_type.clone().unwrap_or(NumberType::I32);
+        let otp = other.number_type.clone().unwrap_or(NumberType::I32);
+        
+        if (tp.is_signed() != otp.is_signed()){return false;}
+        if (tp.is_unsigned() != otp.is_unsigned()){return false;}
+        if (tp.is_float() != otp.is_float()){return false;}
+        if (tp.is_float()){
+            let parsed_self = self.parse_int::<f64>();
+            let parsed_other = other.parse_int::<f64>();
+            if parsed_self.is_err() || parsed_other.is_err(){return false;}
+            return parsed_self.unwrap() == parsed_other.unwrap();
+        }
+        if (tp.is_unsigned()){
+            let parsed_self = self.parse_int::<u128>();
+            let parsed_other = other.parse_int::<u128>();
+            if parsed_self.is_err() || parsed_other.is_err(){return false;}
+            return parsed_self.unwrap() == parsed_other.unwrap();
+        }else{
+            let parsed_self = self.parse_int::<i128>();
+            let parsed_other = other.parse_int::<i128>();
+            if parsed_self.is_err() || parsed_other.is_err(){return false;}
+            return parsed_self.unwrap() == parsed_other.unwrap();
+        }
+    }
+}
+
 use num_traits::Num;
 impl NumberLiteral {
+    pub fn DUMMY() -> Self {
+        Self {
+            text_content: "DUMMY_NUMBER".to_string(),
+            text_filtered: "DUMMY_NUMBER".to_string(),
+            is_negative: false,
+            has_decimal: false,
+            detected_base: None,
+            number_type: None,
+        }
+    }
     pub fn new(number: &str) -> Option<(usize, Self)> {
         let mut size = 0;
         let is_negative = number.starts_with('-');
         let mut current_string = if !is_negative {
             number
         } else {
-            size+=1; &number[1..]
+            size += 1;
+            &number[1..]
         };
         let first_char = current_string.chars().next()?;
-        
+
         // First must be zero to specify a base, or a decimal number
-        if !first_char.is_numeric(){
+        if !first_char.is_numeric() {
             return None;
         }
 
         let detected_base = NUMBER_PREFIX_DATA
             .iter()
-            .filter(|prefix| current_string.len() >= prefix.0.len() && current_string[..prefix.0.len()].eq_ignore_ascii_case(prefix.0))
+            .filter(|prefix| {
+                current_string.len() >= prefix.0.len()
+                    && current_string[..prefix.0.len()].eq_ignore_ascii_case(prefix.0)
+            })
             .map(|prefix| prefix.1.clone())
             .next();
         if let Some(base) = detected_base.as_ref() {
             current_string = &current_string[2..];
-            size+=2;
+            size += 2;
         }
         let base = detected_base.clone().unwrap_or(NumberBase::Decimal);
-        
-        let mut filtered = (if is_negative {"-"} else {""}).to_string();
+
+        let mut filtered = (if is_negative { "-" } else { "" }).to_string();
         let mut highest_valid: usize = usize::MAX;
         let mut next_invalid = usize::MAX;
 
         let mut hasSeenPeriod = false;
-        
-        for char in current_string.char_indices().filter(|c| c.1 != '_'){
 
-
-            if '.' == char.1{
+        for char in current_string.char_indices().filter(|c| c.1 != '_') {
+            if '.' == char.1 {
                 hasSeenPeriod = true;
-            }
-            else if !base.is_valid(char.1){
+            } else if !base.is_valid(char.1) {
                 next_invalid = char.0;
                 break;
             }
-            
 
             filtered.push(char.1);
             highest_valid = char.0;
         }
         // Found nothing
-        if highest_valid == usize::MAX{return None;}
-        
+        if highest_valid == usize::MAX {
+            return None;
+        }
+
         // We are at the end of the buffer
-        if next_invalid == usize::MAX{
+        if next_invalid == usize::MAX {
             size += highest_valid + 1;
-            return Some((size, Self {
-                text_content: number[..size].to_string(),
-                text_filtered: filtered,
-                is_negative,
-                detected_base,
-                number_type: None,
-                has_decimal: hasSeenPeriod
-            }))
+            return Some((
+                size,
+                Self {
+                    text_content: number[..size].to_string(),
+                    text_filtered: filtered,
+                    is_negative,
+                    detected_base,
+                    number_type: None,
+                    has_decimal: hasSeenPeriod,
+                },
+            ));
         }
         size += next_invalid;
         current_string = &current_string[next_invalid..];
 
-
         let number_type = NUMBER_SUFFIX_DATA
             .iter()
-            .filter(|suffix| 
-                current_string.len() >= suffix.0.len() && current_string[..suffix.0.len()].eq_ignore_ascii_case(suffix.0)
-            )
+            .filter(|suffix| {
+                current_string.len() >= suffix.0.len()
+                    && current_string[..suffix.0.len()].eq_ignore_ascii_case(suffix.0)
+            })
             .map(|prefix| (prefix.0.len(), prefix.1.clone()))
             .next();
         if let Some(ty) = number_type.as_ref() {
             size += ty.0;
         }
-        Some((size, Self {
-            text_content: number[..size].to_string(),
-            text_filtered: filtered,
-            is_negative,
-            detected_base,
-            number_type: number_type.map(|t| t.1),
-            has_decimal: hasSeenPeriod
-        }))
-        
+        Some((
+            size,
+            Self {
+                text_content: number[..size].to_string(),
+                text_filtered: filtered,
+                is_negative,
+                detected_base,
+                number_type: number_type.map(|t| t.1),
+                has_decimal: hasSeenPeriod,
+            },
+        ))
     }
 
     pub fn parse_int<T: Num>(&self) -> Result<T, T::FromStrRadixErr> {
@@ -190,6 +245,21 @@ impl NumberType {
             NumberType::F32 | NumberType::F64 | NumberType::F128 => true,
             _ => false,
         }
+    }
+    pub fn is_unsigned(&self) -> bool {
+        match self {
+            NumberType::U8 | NumberType::U16 | NumberType::U32 | NumberType::U64 | NumberType::U128 |NumberType::USIZE => true,
+            _ => false
+        }
+    }
+    pub fn is_signed_int(&self) -> bool {
+        match self {
+            NumberType::I8 | NumberType::I16 | NumberType::I32 | NumberType::I64 | NumberType::I128 |NumberType::ISIZE => true,
+            _ => false
+        }
+    }
+    pub fn is_signed(&self) -> bool {
+        self.is_float() || self.is_signed_int()
     }
 }
 #[cfg(test)]
@@ -319,7 +389,6 @@ mod tests {
         assert_eq!(literal.detected_base, None);
         assert_eq!(literal.number_type, Some(NumberType::U8));
     }
-
 
     #[test]
     fn test_number_literal_parse_int_i32() {

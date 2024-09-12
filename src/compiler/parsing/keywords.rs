@@ -2,7 +2,7 @@ macro_rules! genKeyword {
     ($($element:ident, $text: literal), *) => {
         const KEYWORDS : &[&'static str] = &[$($text, )*];
 
-        #[derive(Debug)]
+        #[derive(Debug, Clone, PartialEq)]
         pub enum Keyword{
             $(
                 $element,
@@ -13,8 +13,11 @@ macro_rules! genKeyword {
                 if x.len() <= 1 { return None }
 
                 $(
-                    if x.starts_with($text){
-                        return Some(Self::$element)
+                    // This _should_ be evaluated at compile time
+                    if Self::$element != Self::DUMMY{
+                        if x.starts_with($text){
+                            return Some(Self::$element)
+                        }
                     }
                 )*
                 None
@@ -24,6 +27,7 @@ macro_rules! genKeyword {
 }
 
 genKeyword!(
+    DUMMY, "INVALID_KEYWORD",
     If, "if", 
     ElseIf, "else if",
     Else, "else",
@@ -31,7 +35,7 @@ genKeyword!(
     Do, "do",
     For, "for",
     Match, "match",
-    Var, "Var",
+    Var, "var",
 
     Trait, "trait",
     Struct, "struct",
