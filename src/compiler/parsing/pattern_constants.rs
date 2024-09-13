@@ -37,8 +37,8 @@ pub const FUNCTION_DECLARATION : &[Match] = &[
     IgnoreWhitespace,
 
     // Generics
-    Optional(&[(Of(&[TokenData::Bracket(b'<', None)]))]),
-    IgnoreWhitespace,
+    // Optional(&[(Of(&[TokenData::Bracket(b'<', None)]))]),
+    // IgnoreWhitespace,
     // Args
     Of(&[TokenData::Bracket(b'(', None)]),
     Optional(&[
@@ -58,4 +58,14 @@ pub const FUNCTION_DECLARATION : &[Match] = &[
 
 
     
+];
+
+pub const TEST : &[Match] = &[
+    Of(&[TokenData::Keyword(Keyword::If)]),
+    IgnoreWhitespace,
+    Optional(&[
+        Of(&[TokenData::Keyword(Keyword::Where)]),
+        Glob
+    ]),
+    Of(&[TokenData::Semicolon])
 ];
