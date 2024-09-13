@@ -1,11 +1,15 @@
 #![allow(unused)]
 mod compiler;
-const HELLO : &str = "
 
-stringify!(foo) x = 4;";
+use compiler::parsing::pattern_constants::*;
+use compiler::parsing::pattern_matcher::*;
+
+const HELLO : &str = "i32 x() where foo{}";
 
 fn main() {
     // Either()
     let ts = compiler::parsing::tokenizer::tokenize_text(HELLO.to_string()).unwrap();
-    println!("{:?}", ts);
+    
+    println!("{:?}", test_tokens_against(FUNCTION_DECLARATION, &ts));
+    
 }

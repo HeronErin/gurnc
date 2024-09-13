@@ -9,10 +9,24 @@ pub enum Match<'a> {
     OfType(&'a [TokenData]),
     Optional(&'a [Match<'a>]),
     PossibleCommaSeparated(&'a [Match<'a>]),
+    PossibleWhitespaceSeparated(&'a [Match<'a>]),
     Either(&'a [Match<'a>], &'a [Match<'a>]),
 
     Glob,
 }
+
+#[derive(Debug, PartialEq)]
+pub enum MatchResult {
+    // We have no need of whitespace or Of as the results carry no data
+    OfType(Vec<Token>),
+    Optional(Option<Vec<MatchResult>>),
+    PossibleCommaSeparated(Vec<Vec<MatchResult>>),
+    PossibleWhitespaceSeparated(Vec<Vec<MatchResult>>),
+    Either(EitherSide<Vec<MatchResult>, Vec<MatchResult>>),
+
+    Glob(Vec<Token>),
+}
+
 #[derive(Debug, PartialEq)]
 pub enum EitherSide<A, B> {
     Left(A),
@@ -29,16 +43,7 @@ impl<A, B> EitherSide<A, B> {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum MatchResult {
-    // We have no need of whitespace or Of as the results carry no data
-    OfType(Vec<Token>),
-    Optional(Option<Vec<MatchResult>>),
-    PossibleCommaSeparated(Vec<Vec<MatchResult>>),
-    Either(EitherSide<Vec<MatchResult>, Vec<MatchResult>>),
 
-    Glob(Vec<Token>),
-}
 fn consume_whitespace<'a>(mut tokens: &'a [Token]) -> (bool, &'a [Token]) {
     let mut hasSeenWhitespace = false;
     while let Some(token) = tokens.get(0) {
@@ -97,7 +102,7 @@ pub fn test_tokens_against<'a>(
                     ret.push(MatchResult::Optional(None));
                 }
             }
-            Match::PossibleCommaSeparated(test) => {
+            Match::PossibleCommaSeparated(test) |  Match::PossibleWhitespaceSeparated(test)=> {
                 let mut values = Vec::new();
                 loop {
                     if let Some((new_tokens, res)) = test_tokens_against(test, tokens) {
@@ -111,13 +116,22 @@ pub fn test_tokens_against<'a>(
                         break;
                     }
                     let next = next.unwrap();
-                    if !matches!(next.data, TokenData::Colon) {
+
+                    if matches!(method, Match::PossibleCommaSeparated(_)) && !matches!(next.data, TokenData::Colon) {
+                        break;
+                    }
+                    if matches!(method, Match::PossibleWhitespaceSeparated(_)) && !matches!(next.data, TokenData::Whitespace(_)) {
+                        tokens = consume_whitespace(tokens).1;
                         break;
                     }
                     tokens = &tokens[1..];
                 }
-
-                ret.push(MatchResult::PossibleCommaSeparated(values));
+                if matches!(method, Match::PossibleCommaSeparated(_)){
+                    ret.push(MatchResult::PossibleCommaSeparated(values));
+                }
+                else{
+                    ret.push(MatchResult::PossibleWhitespaceSeparated(values));
+                }
             }
             Match::Either(this, that) => {
                 if let Some((new_tokens, res)) = test_tokens_against(this, tokens) {
@@ -133,11 +147,13 @@ pub fn test_tokens_against<'a>(
             Match::Glob => {
                 let mut itr = tokens;
                 let test = &test[i + 1..];
+                let mut found_glob = false;
 
                 while 0 != itr.len() {
                     if let Some((new_tokens, mut res)) = test_tokens_against(test, itr) {
+                        found_glob = true;
                         ret.push(MatchResult::Glob(
-                            // The shrink in ite size is the amount of loop iterations
+                            // The shrink in itr size is the amount of loop iterations
                             tokens[..tokens.len() - itr.len()].to_vec(),
                         ));
                         tokens = new_tokens;
@@ -147,6 +163,9 @@ pub fn test_tokens_against<'a>(
                         break;
                     }
                     itr = &itr[1..];
+                }
+                if !found_glob{
+                    return None
                 }
                 break;
             }
@@ -178,14 +197,14 @@ mod tests {
                 vec![MatchResult::OfType(vec![Token {
                     index: 3,
                     length: 3,
-                    data: TokenData::TextCluster("foo".to_string())
+                    data: TokenData::TextCluster(Some("foo".to_string()))
                 }])]
             )),
             test_tokens_against(
                 &[
                     Match::Of(&[TokenData::Keyword(Keyword::If)]),
                     Match::IgnoreWhitespace,
-                    Match::OfType(&[TokenData::TextCluster("".to_string())])
+                    Match::OfType(&[TokenData::TextCluster(Some("".to_string()))])
                 ],
                 tokenize_text("if foo".to_string()).unwrap().as_slice(),
             )

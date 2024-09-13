@@ -59,24 +59,23 @@ pub enum Operator {
     ConversionPipe,   // |>
     OptionalOperator, // ?
     ErrorOperator,    // !
+
+
+    EqualsArrow, // =>
+    LineArrow, // ->
 }
-const BINARY_OPERATORS: [(&'static str, Operator); 36] = [
-    ("=", Operator::Assign),
-    ("+", Operator::Add),
+const BINARY_OPERATORS: [(&'static str, Operator); 38] = [
+    ("=>", Operator::EqualsArrow),
+    ("->", Operator::LineArrow),
+
+
     ("+=", Operator::AddEq),
-    ("-", Operator::Sub),
     ("-=", Operator::SubEq),
-    ("*", Operator::Mut),
     ("*=", Operator::MultEq),
-    ("/", Operator::Div),
     ("/=", Operator::DivEq),
     ("%", Operator::Mod),
-    ("%=", Operator::ModEq),
-    ("&", Operator::BitwiseAnd),
     ("&=", Operator::BitwiseAndEq),
-    ("^", Operator::Xor),
     ("^=", Operator::XorEq),
-    ("|", Operator::BitwiseOr),
     ("|=", Operator::BitwiseOrEq),
     (">>", Operator::BitwiseShiftRight),
     (">>=", Operator::BitwiseShiftRightEq),
@@ -92,11 +91,21 @@ const BINARY_OPERATORS: [(&'static str, Operator); 36] = [
     ("||=", Operator::LogicalOrEq),
     ("==", Operator::EqualityCheck),
     ("!=", Operator::NotEqualityCheck),
-    (">", Operator::GreaterThan),
     (">=", Operator::GreaterThanEq),
     ("<=", Operator::LesserThanEq),
-    ("<", Operator::LesserThan),
     ("|>", Operator::ConversionPipe),
+    ("%=", Operator::ModEq),
+    ("|", Operator::BitwiseOr),
+    ("^", Operator::Xor),
+    ("&", Operator::BitwiseAnd),
+    (">", Operator::GreaterThan),
+    ("<", Operator::LesserThan),
+    ("/", Operator::Div),
+    ("*", Operator::Mut),
+    ("-", Operator::Sub),
+    ("=", Operator::Assign),
+    ("+", Operator::Add),
+    
 ];
 
 

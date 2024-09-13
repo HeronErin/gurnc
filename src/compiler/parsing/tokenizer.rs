@@ -11,20 +11,22 @@ use super::number_parser::*;
 #[derive(Debug, Clone)]
 pub enum TokenData {
     Keyword(Keyword),
-    TextCluster(String),
+    TextCluster(Option<String> /*Only None on pattern match constants*/),
     NumberLiteral(NumberLiteral),
     // StringLiteral(StringLiteral),
     Whitespace(String),
     Operator(Operator),
     Semicolon,
     Colon,
+    AtSign, // @
 
     // Starting char, token contents
     Bracket(
         u8,
-        Option<Vec<Token> /*  Only None on pattern match constants*/>,
+        Option<Vec<Token> /*Only None on pattern match constants*/>,
     ), // Anytype of thing that could nest code, including '(', '{', and "[".
 }
+
 impl PartialEq for TokenData{
     fn eq(&self, other: &Self) -> bool {
         match self{
@@ -48,6 +50,7 @@ impl PartialEq for TokenData{
                 _=> false
             },
             TokenData::Semicolon => matches!(other, TokenData::Semicolon),
+            TokenData::AtSign => matches!(other, TokenData::AtSign),
             TokenData::Colon => matches!(other, TokenData::Colon),
             TokenData::Bracket(c, _) => match other {
                 TokenData::Bracket(c2, _) => *c == *c2,
@@ -190,6 +193,15 @@ pub fn tokenize_text(text: String) -> Result<Vec<Token>, ParsingError> {
             index += 1;
             canBePreUnary = true;
             continue;
+        }else if (current == b'@') {
+            tokenStack.push(Token {
+                index: index,
+                length: 1,
+                data: TokenData::AtSign,
+            });
+            index += 1;
+            canBePreUnary = true;
+            continue;
         } else if let Some((length, numberLiteral)) = NumberLiteral::new(&text[index..]) {
             debug_assert_ne!(length, 0);
 
@@ -229,7 +241,7 @@ pub fn tokenize_text(text: String) -> Result<Vec<Token>, ParsingError> {
                 tokenStack.push(Token {
                     index,
                     length,
-                    data: TokenData::TextCluster(text[index..index + length].to_string()),
+                    data: TokenData::TextCluster(Some(text[index..index + length].to_string())),
                 })
             }
 
