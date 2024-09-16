@@ -75,7 +75,7 @@ impl PartialEq for Token{
 
 #[inline]
 fn is_opening_bracket(chr: u8) -> bool {
-    chr == b'(' || chr == b'[' || chr == b'{' || chr == b'<'
+    chr == b'(' || chr == b'[' || chr == b'{'  // || chr == b'<'
 }
 #[inline]
 fn opening_to_closing(chr: u8) -> u8 {
@@ -83,7 +83,7 @@ fn opening_to_closing(chr: u8) -> u8 {
         b'(' => b')',
         b'{' => b'}',
         b'[' => b']',
-        b'<' => b'>',
+        // b'<' => b'>',
         _ => 0,
     }
 }

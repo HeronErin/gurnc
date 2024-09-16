@@ -41,7 +41,8 @@ genKeyword!(
     Struct, "struct",
     Enum, "enum",
     Import, "import",
-
+    Impl, "impl",
+    Implements, "implements",
     Pub, "pub",
     Private, "private",
 

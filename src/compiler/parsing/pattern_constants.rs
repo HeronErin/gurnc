@@ -1,15 +1,16 @@
-use super::{pattern_matcher::*, tokenizer::{Token, TokenData}, Keyword};
+use super::{pattern_matcher::*, tokenizer::{Token, TokenData}, type_parser::type_size_function, Keyword};
 use Match::*;
 
+const TYPE_GLOB : Match<'static> = GlobWithSizer(type_size_function);
 
 pub const IF_STATEMENT : &[Match] = &[
     Of(&[TokenData::Keyword(Keyword::If)]),
     IgnoreWhitespace,
-    Of(&[TokenData::Bracket(b'(', None)]),
+    Bracket(b'(', &[Glob]),
     IgnoreWhitespace,
     Either(
         &[Glob, Of(&[TokenData::Semicolon])], // Single line
-        &[Of(&[TokenData::Bracket(b'{', None)])] // Scoped if
+        &[Bracket(b'{', &[Glob])] // Scoped if
     )
 ];
 
@@ -20,7 +21,7 @@ pub const FUNCTION_DECLARATION : &[Match] = &[
         OfType(&[TokenData::TextCluster(None)]),
         IgnoreWhitespace,
         Optional(&[
-            Of(&[TokenData::Bracket(b'(', None)])
+            Bracket(b'(', &[Glob])
         ])
     ]),
     IgnoreWhitespace,
@@ -28,19 +29,40 @@ pub const FUNCTION_DECLARATION : &[Match] = &[
         OfType(&[TokenData::Keyword(Keyword::DUMMY)]),
     ]),
     IgnoreWhitespace,
+    
     // Return type
-    Glob,
+    TYPE_GLOB,
+
     IgnoreWhitespace,
     
     // Function Name
     OfType(&[TokenData::TextCluster(None)]),
+    
     IgnoreWhitespace,
 
     // Generics
-    // Optional(&[(Of(&[TokenData::Bracket(b'<', None)]))]),
-    // IgnoreWhitespace,
+    Optional(&[
+        Of(&[TokenData::Operator(crate::compiler::operators::Operator::LesserThan)]),
+        Glob,
+        Of(&[TokenData::Operator(crate::compiler::operators::Operator::GreaterThan)]),
+        IgnoreWhitespace
+    ]),
+
+
     // Args
-    Of(&[TokenData::Bracket(b'(', None)]),
+    Bracket(b'(', &[
+        PossibleCommaSeparated(&[
+            IgnoreWhitespace,
+            PossibleWhitespaceSeparated(&[
+                OfType(&[TokenData::Keyword(Keyword::DUMMY)]),
+            ]),
+            IgnoreWhitespace,
+            TYPE_GLOB,
+            Whitespace,
+            OfType(&[TokenData::TextCluster(None)]),
+            IgnoreWhitespace
+        ])
+    ]),
     Optional(&[
         IgnoreWhitespace,
         Of(&[TokenData::Keyword(Keyword::Where)]),
@@ -49,11 +71,11 @@ pub const FUNCTION_DECLARATION : &[Match] = &[
     IgnoreWhitespace,
 
     Either(&[
+        Of(&[TokenData::Bracket(b'{', None)])
+    ], &[
         Of(&[TokenData::Operator(crate::compiler::operators::Operator::EqualsArrow)]),
         Glob,
         Of(&[TokenData::Semicolon])
-    ], &[
-        Of(&[TokenData::Bracket(b'{', None)])
     ])
 
 

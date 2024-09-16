@@ -8,7 +8,7 @@ pub enum Operator {
     SubEq,
     Sub,
 
-    Mut,
+    Mult,
     MultEq,
 
     Div,
@@ -101,7 +101,7 @@ const BINARY_OPERATORS: [(&'static str, Operator); 38] = [
     (">", Operator::GreaterThan),
     ("<", Operator::LesserThan),
     ("/", Operator::Div),
-    ("*", Operator::Mut),
+    ("*", Operator::Mult),
     ("-", Operator::Sub),
     ("=", Operator::Assign),
     ("+", Operator::Add),
