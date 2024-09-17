@@ -112,7 +112,7 @@ fn detect_text_cluster(s: &str) -> Option<usize> {
     }
     let mut count = 1;
     for char in chars {
-        if char.is_whitespace() || char.is_ascii_punctuation() {
+        if char.is_whitespace() || ( char != '_' && char.is_ascii_punctuation()) {
             break;
         }
         count += 1;
@@ -121,7 +121,7 @@ fn detect_text_cluster(s: &str) -> Option<usize> {
     Some(count)
 }
 
-use super::keywords::*;
+use crate::compiler::keywords::*;
 use crate::compiler::errors::*;
 
 pub fn tokenize_text(text: String) -> Result<Vec<Token>, ParsingError> {

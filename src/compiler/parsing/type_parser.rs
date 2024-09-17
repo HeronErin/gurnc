@@ -1,4 +1,4 @@
-use crate::{compiler::operators::Operator, consume_whitespace};
+use crate::{compiler::{keywords::Keyword, operators::Operator}, consume_whitespace};
 
 use super::tokenizer::{Token, TokenData};
 
@@ -10,7 +10,7 @@ fn is_valid_type_unary(token : &Token) -> bool{
 
         TokenData::Operator(Operator::Reference) => true,
 
-        TokenData::Keyword(super::Keyword::Impl | super::Keyword::Const) => true,
+        TokenData::Keyword(Keyword::Impl | Keyword::Const) => true,
 
         _ => false
     }
