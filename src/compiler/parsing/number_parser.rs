@@ -19,25 +19,8 @@ impl NumberBase {
         }
     }
 }
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum NumberType {
-    I8,
-    I16,
-    I32,
-    I64,
-    I128,
-    ISIZE,
-    U8,
-    U16,
-    U32,
-    U64,
-    U128,
-    USIZE,
-    F32,
-    F64,
-    F128,
-    REAL,
-}
+
+
 
 #[derive(Clone)]
 pub struct NumberLiteral {
@@ -46,7 +29,7 @@ pub struct NumberLiteral {
     pub is_negative: bool,
     pub has_decimal: bool,
     pub detected_base: Option<NumberBase>,
-    pub number_type: Option<NumberType>,
+    pub number_type: Option<Primitive>,
 }
 impl Debug for NumberLiteral {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -60,8 +43,8 @@ impl PartialEq for NumberLiteral {
             return true;
         }
         if (self.is_negative != other.is_negative){return false;}
-        let tp = self.number_type.clone().unwrap_or(NumberType::I32);
-        let otp = other.number_type.clone().unwrap_or(NumberType::I32);
+        let tp = self.number_type.clone().unwrap_or(Primitive::I32);
+        let otp = other.number_type.clone().unwrap_or(Primitive::I32);
         
         if (tp.is_signed() != otp.is_signed()){return false;}
         if (tp.is_unsigned() != otp.is_unsigned()){return false;}
@@ -87,6 +70,8 @@ impl PartialEq for NumberLiteral {
 }
 
 use num_traits::Num;
+
+use crate::compiler::objects::gurn_objects::Primitive;
 impl NumberLiteral {
     pub fn DUMMY() -> Self {
         Self {
@@ -202,23 +187,23 @@ impl NumberLiteral {
     }
 }
 
-const NUMBER_SUFFIX_DATA: [(&'static str, NumberType); 16] = [
-    ("i8", NumberType::I8),
-    ("i16", NumberType::I16),
-    ("i32", NumberType::I32),
-    ("i64", NumberType::I64),
-    ("i128", NumberType::I128),
-    ("isize", NumberType::ISIZE),
-    ("u8", NumberType::U8),
-    ("u16", NumberType::U16),
-    ("u32", NumberType::U32),
-    ("u64", NumberType::U64),
-    ("u128", NumberType::U128),
-    ("usize", NumberType::USIZE),
-    ("f32", NumberType::F32),
-    ("f64", NumberType::F64),
-    ("f128", NumberType::F128),
-    ("real", NumberType::REAL),
+const NUMBER_SUFFIX_DATA: [(&'static str, Primitive); 16] = [
+    ("i8", Primitive::I8),
+    ("i16", Primitive::I16),
+    ("i32", Primitive::I32),
+    ("i64", Primitive::I64),
+    ("i128", Primitive::I128),
+    ("isize", Primitive::ISIZE),
+    ("u8", Primitive::U8),
+    ("u16", Primitive::U16),
+    ("u32", Primitive::U32),
+    ("u64", Primitive::U64),
+    ("u128", Primitive::U128),
+    ("usize", Primitive::USIZE),
+    ("f32", Primitive::F32),
+    ("f64", Primitive::F64),
+    ("f128", Primitive::F128),
+    ("real", Primitive::REAL),
 ];
 
 const NUMBER_PREFIX_DATA: [(&'static str, NumberBase); 4] = [
@@ -228,33 +213,33 @@ const NUMBER_PREFIX_DATA: [(&'static str, NumberBase); 4] = [
     ("0x", NumberBase::Hexadecimal),
 ];
 
-impl NumberType {
+impl Primitive {
     pub fn to_size(&self) -> Option<usize> {
         match self {
-            NumberType::I8 | NumberType::U8 => Some(1),
-            NumberType::I16 | NumberType::U16 => Some(2),
-            NumberType::I32 | NumberType::U32 | NumberType::F32 => Some(4),
-            NumberType::I64 | NumberType::U64 | NumberType::F64 => Some(8),
-            NumberType::I128 | NumberType::U128 | NumberType::F128 => Some(16),
-            NumberType::ISIZE | NumberType::USIZE => None,
-            NumberType::REAL => Some(8),
+            Primitive::I8 | Primitive::U8 => Some(1),
+            Primitive::I16 | Primitive::U16 => Some(2),
+            Primitive::I32 | Primitive::U32 | Primitive::F32 => Some(4),
+            Primitive::I64 | Primitive::U64 | Primitive::F64 => Some(8),
+            Primitive::I128 | Primitive::U128 | Primitive::F128 => Some(16),
+            Primitive::ISIZE | Primitive::USIZE => None,
+            Primitive::REAL => Some(8),
         }
     }
     pub fn is_float(&self) -> bool {
         match self {
-            NumberType::F32 | NumberType::F64 | NumberType::F128 => true,
+            Primitive::F32 | Primitive::F64 | Primitive::F128 => true,
             _ => false,
         }
     }
     pub fn is_unsigned(&self) -> bool {
         match self {
-            NumberType::U8 | NumberType::U16 | NumberType::U32 | NumberType::U64 | NumberType::U128 |NumberType::USIZE => true,
+            Primitive::U8 | Primitive::U16 | Primitive::U32 | Primitive::U64 | Primitive::U128 |Primitive::USIZE => true,
             _ => false
         }
     }
     pub fn is_signed_int(&self) -> bool {
         match self {
-            NumberType::I8 | NumberType::I16 | NumberType::I32 | NumberType::I64 | NumberType::I128 |NumberType::ISIZE => true,
+            Primitive::I8 | Primitive::I16 | Primitive::I32 | Primitive::I64 | Primitive::I128 |Primitive::ISIZE => true,
             _ => false
         }
     }
@@ -387,7 +372,7 @@ mod tests {
         assert!(!literal.is_negative);
         assert!(!literal.has_decimal);
         assert_eq!(literal.detected_base, None);
-        assert_eq!(literal.number_type, Some(NumberType::U8));
+        assert_eq!(literal.number_type, Some(Primitive::U8));
     }
 
     #[test]
@@ -398,7 +383,7 @@ mod tests {
             is_negative: false,
             has_decimal: false,
             detected_base: Some(NumberBase::Decimal),
-            number_type: Some(NumberType::I32),
+            number_type: Some(Primitive::I32),
         };
         let value: i32 = literal.parse_int().unwrap();
         assert_eq!(value, 123);
@@ -412,7 +397,7 @@ mod tests {
             is_negative: false,
             has_decimal: false,
             detected_base: Some(NumberBase::Decimal),
-            number_type: Some(NumberType::U8),
+            number_type: Some(Primitive::U8),
         };
         let value: u8 = literal.parse_int().unwrap();
         assert_eq!(value, 255);
@@ -447,30 +432,30 @@ mod tests {
 
     #[test]
     fn test_number_type_to_size() {
-        assert_eq!(NumberType::I8.to_size(), Some(1));
-        assert_eq!(NumberType::U8.to_size(), Some(1));
-        assert_eq!(NumberType::I16.to_size(), Some(2));
-        assert_eq!(NumberType::U16.to_size(), Some(2));
-        assert_eq!(NumberType::I32.to_size(), Some(4));
-        assert_eq!(NumberType::U32.to_size(), Some(4));
-        assert_eq!(NumberType::F32.to_size(), Some(4));
-        assert_eq!(NumberType::I64.to_size(), Some(8));
-        assert_eq!(NumberType::U64.to_size(), Some(8));
-        assert_eq!(NumberType::F64.to_size(), Some(8));
-        assert_eq!(NumberType::I128.to_size(), Some(16));
-        assert_eq!(NumberType::U128.to_size(), Some(16));
-        assert_eq!(NumberType::F128.to_size(), Some(16));
-        assert_eq!(NumberType::ISIZE.to_size(), None);
-        assert_eq!(NumberType::USIZE.to_size(), None);
-        assert_eq!(NumberType::REAL.to_size(), Some(8));
+        assert_eq!(Primitive::I8.to_size(), Some(1));
+        assert_eq!(Primitive::U8.to_size(), Some(1));
+        assert_eq!(Primitive::I16.to_size(), Some(2));
+        assert_eq!(Primitive::U16.to_size(), Some(2));
+        assert_eq!(Primitive::I32.to_size(), Some(4));
+        assert_eq!(Primitive::U32.to_size(), Some(4));
+        assert_eq!(Primitive::F32.to_size(), Some(4));
+        assert_eq!(Primitive::I64.to_size(), Some(8));
+        assert_eq!(Primitive::U64.to_size(), Some(8));
+        assert_eq!(Primitive::F64.to_size(), Some(8));
+        assert_eq!(Primitive::I128.to_size(), Some(16));
+        assert_eq!(Primitive::U128.to_size(), Some(16));
+        assert_eq!(Primitive::F128.to_size(), Some(16));
+        assert_eq!(Primitive::ISIZE.to_size(), None);
+        assert_eq!(Primitive::USIZE.to_size(), None);
+        assert_eq!(Primitive::REAL.to_size(), Some(8));
     }
 
     #[test]
     fn test_number_type_is_float() {
-        assert!(NumberType::F32.is_float());
-        assert!(NumberType::F64.is_float());
-        assert!(NumberType::F128.is_float());
-        assert!(!NumberType::I8.is_float());
-        assert!(!NumberType::U8.is_float());
+        assert!(Primitive::F32.is_float());
+        assert!(Primitive::F64.is_float());
+        assert!(Primitive::F128.is_float());
+        assert!(!Primitive::I8.is_float());
+        assert!(!Primitive::U8.is_float());
     }
 }

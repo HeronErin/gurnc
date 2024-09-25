@@ -1,6 +1,6 @@
 #![allow(unused)]
 pub mod tokenizer;
-mod number_parser;
+pub mod number_parser;
 mod string_parser;
 
 
