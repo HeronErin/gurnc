@@ -17,3 +17,4 @@ pub enum Primitive {
     F128,
     REAL,
 }
+
